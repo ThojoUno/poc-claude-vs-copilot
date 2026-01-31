@@ -46,6 +46,7 @@ jobs:
     needs: validate
     permissions:
       contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,7 +57,7 @@ jobs:
           client-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.TENANT_ID }}
           subscription-id: ${{ secrets.SUBSCRIPTION_ID }}
-          client-secret: ${{ secrets.SECRET_ID }}
+          auth-type: federated
 
       - name: Resolve template and parameters
         id: resolve
