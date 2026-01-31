@@ -1,0 +1,149 @@
+name: Deploy ccskill Task 1.1 - Storage Account
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        type: choice
+        options:
+          - dev
+          - prod
+        default: 'dev'
+        required: true
+      resource_group:
+        description: 'Target resource group'
+        type: string
+        default: 'rg-eastus2-ccskill'
+        required: true
+      location:
+        description: 'Azure region'
+        type: string
+        default: 'eastus2'
+        required: true
+
+env:
+  TEMPLATE_PATH: infra/ccskill/task-1.1-storage-account/main.bicep
+  PARAMS_PATH: infra/ccskill/task-1.1-storage-account/main.bicepparam
+
+jobs:
+  validate:
+    name: Validate
+    uses: ./.github/workflows/validate-bicep.yml
+    with:
+      bicep_path: infra/ccskill/task-1.1-storage-account
+
+  deploy:
+    name: Deploy Storage Account
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        run: |
+          az login --service-principal \
+            --username "${{ secrets.CLIENT_ID }}" \
+            --password "${{ secrets.SECRET_ID }}" \
+            --tenant "${{ secrets.TENANT_ID }}" \
+            --output none
+          az account set --subscription "${{ secrets.SUBSCRIPTION_ID }}"
+
+      - name: Get prerequisites outputs
+        id: prereqs
+        run: |
+          echo "Fetching prerequisites deployment outputs..."
+
+          # Get the latest successful prerequisites deployment
+          PREREQ_OUTPUT=$(az deployment group show \
+            --name "$(az deployment group list --resource-group "${{ inputs.resource_group }}" --query "[?contains(name, 'ccskill-prerequisites')].name | [0]" -o tsv)" \
+            --resource-group "${{ inputs.resource_group }}" \
+            --query "properties.outputs" \
+            --output json 2>/dev/null || echo "{}")
+
+          if [ "$PREREQ_OUTPUT" = "{}" ]; then
+            echo "ERROR: Prerequisites not deployed. Run deploy-ccskill-prerequisites first."
+            exit 1
+          fi
+
+          # Extract values from prerequisites
+          echo "subnetId=$(echo $PREREQ_OUTPUT | jq -r '.privateEndpointSubnetId.value')" >> $GITHUB_OUTPUT
+          echo "keyVaultId=$(echo $PREREQ_OUTPUT | jq -r '.keyVaultId.value')" >> $GITHUB_OUTPUT
+          echo "logAnalyticsWorkspaceId=$(echo $PREREQ_OUTPUT | jq -r '.logAnalyticsWorkspaceId.value')" >> $GITHUB_OUTPUT
+          echo "userAssignedIdentityId=$(echo $PREREQ_OUTPUT | jq -r '.storageCmkIdentityId.value')" >> $GITHUB_OUTPUT
+          echo "privateDnsZoneId=$(echo $PREREQ_OUTPUT | jq -r '.privateDnsZoneId.value')" >> $GITHUB_OUTPUT
+
+          echo "Prerequisites outputs retrieved successfully."
+
+      - name: Convert bicepparam to JSON
+        run: |
+          az bicep build-params \
+            --file "${{ env.PARAMS_PATH }}" \
+            --outfile params.json
+
+      - name: What-If deployment
+        run: |
+          az deployment group what-if \
+            --name "ccskill-task-1.1-${{ github.run_id }}" \
+            --resource-group "${{ inputs.resource_group }}" \
+            --template-file "${{ env.TEMPLATE_PATH }}" \
+            --parameters @params.json \
+            --parameters environment=${{ inputs.environment }} location=${{ inputs.location }} \
+            --parameters subnetId="${{ steps.prereqs.outputs.subnetId }}" \
+            --parameters keyVaultId="${{ steps.prereqs.outputs.keyVaultId }}" \
+            --parameters logAnalyticsWorkspaceId="${{ steps.prereqs.outputs.logAnalyticsWorkspaceId }}" \
+            --parameters userAssignedIdentityId="${{ steps.prereqs.outputs.userAssignedIdentityId }}" \
+            --parameters privateDnsZoneId="${{ steps.prereqs.outputs.privateDnsZoneId }}"
+
+      - name: Deploy storage account
+        run: |
+          az deployment group create \
+            --name "ccskill-task-1.1-${{ github.run_id }}" \
+            --resource-group "${{ inputs.resource_group }}" \
+            --template-file "${{ env.TEMPLATE_PATH }}" \
+            --parameters @params.json \
+            --parameters environment=${{ inputs.environment }} location=${{ inputs.location }} \
+            --parameters subnetId="${{ steps.prereqs.outputs.subnetId }}" \
+            --parameters keyVaultId="${{ steps.prereqs.outputs.keyVaultId }}" \
+            --parameters logAnalyticsWorkspaceId="${{ steps.prereqs.outputs.logAnalyticsWorkspaceId }}" \
+            --parameters userAssignedIdentityId="${{ steps.prereqs.outputs.userAssignedIdentityId }}" \
+            --parameters privateDnsZoneId="${{ steps.prereqs.outputs.privateDnsZoneId }}" \
+            --output json > deployment-output.json
+
+      - name: Display deployment outputs
+        run: |
+          echo "Deployment Outputs:"
+          cat deployment-output.json | jq '.properties.outputs'
+
+      - name: Verify storage account
+        run: |
+          echo "Verifying storage account configuration..."
+
+          STORAGE_NAME=$(cat deployment-output.json | jq -r '.properties.outputs.storageAccountName.value')
+
+          # Verify TLS, HTTPS, HNS
+          az storage account show \
+            --name "$STORAGE_NAME" \
+            --resource-group "${{ inputs.resource_group }}" \
+            --query "{name:name,tls:minimumTlsVersion,https:supportsHttpsTrafficOnly,hns:isHnsEnabled}" \
+            --output table
+
+          # Verify CMK encryption
+          echo "CMK Encryption:"
+          az storage account show \
+            --name "$STORAGE_NAME" \
+            --resource-group "${{ inputs.resource_group }}" \
+            --query "encryption.keyVaultProperties" \
+            --output table
+
+          # Verify private endpoint
+          echo "Private Endpoints:"
+          az network private-endpoint list \
+            --resource-group "${{ inputs.resource_group }}" \
+            --query "[?contains(name,'ccskill')].{name:name,privateLinkServiceId:privateLinkServiceConnections[0].properties.privateLinkServiceId}" \
+            --output table
+
+          echo "Storage account verification complete."

@@ -1,0 +1,122 @@
+name: Deploy ccskill Task 1.3 - Policies
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        type: choice
+        options:
+          - dev
+          - prod
+        default: 'dev'
+        required: true
+      platform_admins_group_id:
+        description: 'Platform Admins AAD group ID (optional)'
+        type: string
+        default: ''
+        required: false
+      lz_contributors_group_id:
+        description: 'LZ Contributors AAD group ID (optional)'
+        type: string
+        default: ''
+        required: false
+      security_readers_group_id:
+        description: 'Security Readers AAD group ID (optional)'
+        type: string
+        default: ''
+        required: false
+
+env:
+  TEMPLATE_PATH: infra/ccskill/task-1.3-policies/main.bicep
+  PARAMS_PATH: infra/ccskill/task-1.3-policies/main.bicepparam
+
+jobs:
+  validate:
+    name: Validate
+    uses: ./.github/workflows/validate-bicep.yml
+    with:
+      bicep_path: infra/ccskill/task-1.3-policies
+
+  deploy:
+    name: Deploy Policies
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        run: |
+          az login --service-principal \
+            --username "${{ secrets.CLIENT_ID }}" \
+            --password "${{ secrets.SECRET_ID }}" \
+            --tenant "${{ secrets.TENANT_ID }}" \
+            --output none
+          az account set --subscription "${{ secrets.SUBSCRIPTION_ID }}"
+
+      - name: Convert bicepparam to JSON
+        run: |
+          az bicep build-params \
+            --file "${{ env.PARAMS_PATH }}" \
+            --outfile params.json
+
+      - name: What-If deployment
+        run: |
+          az deployment sub what-if \
+            --name "ccskill-task-1.3-${{ github.run_id }}" \
+            --location eastus2 \
+            --template-file "${{ env.TEMPLATE_PATH }}" \
+            --parameters @params.json \
+            --parameters platformAdminsGroupId="${{ inputs.platform_admins_group_id }}" \
+            --parameters lzContributorsGroupId="${{ inputs.lz_contributors_group_id }}" \
+            --parameters securityReadersGroupId="${{ inputs.security_readers_group_id }}"
+
+      - name: Deploy policies
+        run: |
+          az deployment sub create \
+            --name "ccskill-task-1.3-${{ github.run_id }}" \
+            --location eastus2 \
+            --template-file "${{ env.TEMPLATE_PATH }}" \
+            --parameters @params.json \
+            --parameters platformAdminsGroupId="${{ inputs.platform_admins_group_id }}" \
+            --parameters lzContributorsGroupId="${{ inputs.lz_contributors_group_id }}" \
+            --parameters securityReadersGroupId="${{ inputs.security_readers_group_id }}" \
+            --output json > deployment-output.json
+
+      - name: Display deployment outputs
+        run: |
+          echo "Deployment Outputs:"
+          cat deployment-output.json | jq '.properties.outputs'
+
+      - name: Verify policies
+        run: |
+          echo "Verifying policy deployment..."
+          SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+          # Verify custom policy definitions
+          echo "Custom Policy Definitions:"
+          az policy definition list \
+            --subscription "$SUBSCRIPTION_ID" \
+            --query "[?contains(name,'ccskill')].{name:name,displayName:displayName}" \
+            --output table
+
+          # Verify policy assignments
+          echo "Policy Assignments:"
+          az policy assignment list \
+            --scope "/subscriptions/$SUBSCRIPTION_ID" \
+            --query "[?contains(name,'ccskill')].{name:name,displayName:displayName,enforcementMode:enforcementMode}" \
+            --output table
+
+          # Verify role assignments (if any group IDs were provided)
+          if [ -n "${{ inputs.platform_admins_group_id }}" ] || [ -n "${{ inputs.lz_contributors_group_id }}" ] || [ -n "${{ inputs.security_readers_group_id }}" ]; then
+            echo "Role Assignments:"
+            az role assignment list \
+              --scope "/subscriptions/$SUBSCRIPTION_ID" \
+              --query "[?contains(description,'ccskill')].{principalId:principalId,roleDefinitionName:roleDefinitionName,description:description}" \
+              --output table
+          fi
+
+          echo "Policy verification complete."
