@@ -63,15 +63,18 @@ jobs:
           VNET_NAME=$(az network vnet list --resource-group "$RG" --query "[?starts_with(name, 'vnet-prereq-cc-')].name" -o tsv | head -1)
           KV_NAME=$(az keyvault list --resource-group "$RG" --query "[?starts_with(name, 'kv-cc-')].name" -o tsv | head -1)
           LAW_NAME=$(az monitor log-analytics workspace list --resource-group "$RG" --query "[?starts_with(name, 'law-cc-')].name" -o tsv | head -1)
+          UAI_NAME=$(az identity list --resource-group "$RG" --query "[?starts_with(name, 'uai-storage-cmk-')].name" -o tsv | head -1)
 
           VNET_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}"
           SUBNET_ID="${VNET_ID}/subnets/PrivateEndpointSubnet"
           KV_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.KeyVault/vaults/${KV_NAME}"
           LAW_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.OperationalInsights/workspaces/${LAW_NAME}"
+          UAI_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${UAI_NAME}"
 
           echo "subnetId=${SUBNET_ID}" >> $GITHUB_OUTPUT
           echo "keyVaultId=${KV_ID}" >> $GITHUB_OUTPUT
           echo "logAnalyticsWorkspaceId=${LAW_ID}" >> $GITHUB_OUTPUT
+          echo "userAssignedIdentityId=${UAI_ID}" >> $GITHUB_OUTPUT
 
       - name: Convert bicepparam to JSON
         run: |
@@ -90,7 +93,8 @@ jobs:
                          location=${{ inputs.location }} \
                          subnetId="${{ steps.prereqs.outputs.subnetId }}" \
                          keyVaultId="${{ steps.prereqs.outputs.keyVaultId }}" \
-                         logAnalyticsWorkspaceId="${{ steps.prereqs.outputs.logAnalyticsWorkspaceId }}"
+                         logAnalyticsWorkspaceId="${{ steps.prereqs.outputs.logAnalyticsWorkspaceId }}" \
+                         userAssignedIdentityId="${{ steps.prereqs.outputs.userAssignedIdentityId }}"
 
       - name: Deploy storage account
         run: |
@@ -104,6 +108,7 @@ jobs:
                          subnetId="${{ steps.prereqs.outputs.subnetId }}" \
                          keyVaultId="${{ steps.prereqs.outputs.keyVaultId }}" \
                          logAnalyticsWorkspaceId="${{ steps.prereqs.outputs.logAnalyticsWorkspaceId }}" \
+                         userAssignedIdentityId="${{ steps.prereqs.outputs.userAssignedIdentityId }}" \
             --output json > deployment-output.json
 
       - name: Display deployment outputs

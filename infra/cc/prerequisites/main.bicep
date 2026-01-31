@@ -190,3 +190,27 @@ output vnetId string = vnet.id
 
 @description('Private Endpoint Subnet resource ID.')
 output privateEndpointSubnetId string = vnet.properties.subnets[0].id
+
+// User-assigned managed identity for storage account CMK access
+resource storageIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: 'uai-storage-cmk-${nameSuffix}'
+  location: location
+  tags: tags
+}
+
+// Key Vault Crypto Service Encryption User role for storage identity
+resource kvCryptoRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, storageIdentity.id, 'e147488a-f6f5-4113-8e2d-b22465e65bf6')
+  scope: keyVault
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'e147488a-f6f5-4113-8e2d-b22465e65bf6')
+    principalId: storageIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+@description('Storage CMK managed identity resource ID.')
+output storageCmkIdentityId string = storageIdentity.id
+
+@description('Storage CMK managed identity principal ID.')
+output storageCmkIdentityPrincipalId string = storageIdentity.properties.principalId

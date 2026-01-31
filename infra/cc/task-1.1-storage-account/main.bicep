@@ -34,6 +34,9 @@ param keyName string = 'cmk-storage'
 @description('Log Analytics workspace resource ID.')
 param logAnalyticsWorkspaceId string
 
+@description('User-assigned managed identity resource ID for CMK access (created in prerequisites).')
+param userAssignedIdentityId string
+
 @description('Tags to apply to resources.')
 param tags object = {
   environment: environment
@@ -48,30 +51,12 @@ var privateDnsZoneName = 'privatelink.blob.${az.environment().suffixes.storage}'
 var vnetId = substring(subnetId, 0, indexOf(subnetId, '/subnets/'))
 var keyVaultName = last(split(keyVaultId, '/'))
 
-// User-assigned managed identity for CMK access
-resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'uai-${storageAccountName}'
-  location: location
-  tags: tags
-}
-
 // Reference existing Key Vault
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
 }
 
-// Key Vault Crypto Service Encryption User role assignment
-resource kvRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVaultId, userAssignedIdentity.id, 'e147488a-f6f5-4113-8e2d-b22465e65bf6')
-  scope: keyVault
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'e147488a-f6f5-4113-8e2d-b22465e65bf6')
-    principalId: userAssignedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-// Storage Account with CMK encryption
+// Storage Account with CMK encryption using pre-created identity
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageAccountName
   location: location
@@ -79,7 +64,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
-      '${userAssignedIdentity.id}': {}
+      '${userAssignedIdentityId}': {}
     }
   }
   sku: {
@@ -101,7 +86,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     encryption: {
       keySource: 'Microsoft.Keyvault'
       identity: {
-        userAssignedIdentity: userAssignedIdentity.id
+        userAssignedIdentity: userAssignedIdentityId
       }
       keyvaultproperties: {
         keyname: keyName
@@ -127,9 +112,6 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
       }
     }
   }
-  dependsOn: [
-    kvRoleAssignment
-  ]
 }
 
 // Blob service configuration
@@ -263,6 +245,3 @@ output primaryBlobEndpoint string = storageAccount.properties.primaryEndpoints.b
 
 @description('Private Endpoint resource ID.')
 output privateEndpointId string = privateEndpoint.id
-
-@description('User-assigned Managed Identity principal ID.')
-output managedIdentityPrincipalId string = userAssignedIdentity.properties.principalId

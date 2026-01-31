@@ -11,6 +11,7 @@ param keyName = 'cmk-storage'
 param subnetId = ''
 param keyVaultId = ''
 param logAnalyticsWorkspaceId = ''
+param userAssignedIdentityId = ''
 
 param tags = {
   environment: 'dev'
