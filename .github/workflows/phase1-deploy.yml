@@ -50,14 +50,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Azure login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.CLIENT_ID }}
-          tenant-id: ${{ secrets.TENANT_ID }}
-          subscription-id: ${{ secrets.SUBSCRIPTION_ID }}
-          auth-type: SERVICE_PRINCIPAL
-          client-secret: ${{ secrets.SECRET_ID }}
+      - name: Azure CLI login (service principal)
+        shell: bash
+        run: |
+          set -euo pipefail
+          az login --service-principal \
+            --username "${{ secrets.CLIENT_ID }}" \
+            --password "${{ secrets.SECRET_ID }}" \
+            --tenant "${{ secrets.TENANT_ID }}" \
+            --output none
+          az account set --subscription "${{ secrets.SUBSCRIPTION_ID }}"
 
       - name: Resolve template and parameters
         id: resolve
