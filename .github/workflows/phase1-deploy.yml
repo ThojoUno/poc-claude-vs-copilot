@@ -99,7 +99,7 @@ jobs:
               --location "$LOCATION" \
               --template-file "$TEMPLATE" \
               $PARAM_FLAGS \
-              --no-pretty-print
+              --only-show-errors
           else
             if [ -z "$RG" ]; then
               echo "resourceGroup input is required for this task."
@@ -110,5 +110,5 @@ jobs:
               --resource-group "$RG" \
               --template-file "$TEMPLATE" \
               $PARAM_FLAGS \
-              --no-pretty-print
+              --only-show-errors
           fi
