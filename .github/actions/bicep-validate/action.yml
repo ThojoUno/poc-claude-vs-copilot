@@ -43,8 +43,8 @@ runs:
         fi
         for file in "${files[@]}"; do
           echo "Checking format for $file"
-          formatted=$(az bicep format --file "$file" --stdout)
-          if ! diff -q <(printf "%s" "$formatted") "$file" > /dev/null; then
+          az bicep format --file "$file" > /dev/null
+          if ! git diff --exit-code -- "$file" > /dev/null; then
             echo "::error file=$file::Bicep file is not formatted. Run 'az bicep format --file $file'."
             exit 1
           fi
