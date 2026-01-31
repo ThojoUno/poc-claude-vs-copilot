@@ -262,6 +262,7 @@ resource routeTable 'Microsoft.Network/routeTables@2023-11-01' = {
 }
 
 // Shared Services Subnet (with NSG and Route Table)
+// Must wait for VPN Gateway to finish provisioning to avoid VNet conflicts
 resource sharedServicesSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
   parent: vnet
   name: 'SharedServicesSubnet'
@@ -276,6 +277,9 @@ resource sharedServicesSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11
   }
   dependsOn: [
     gatewaySubnet
+    vpnGateway
+    firewall
+    bastion
   ]
 }
 
