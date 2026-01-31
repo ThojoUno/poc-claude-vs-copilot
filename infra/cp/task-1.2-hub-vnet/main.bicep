@@ -56,9 +56,11 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
         addressSpace
       ]
     }
-    dhcpOptions: length(dnsServers) > 0 ? {
-      dnsServers: dnsServers
-    } : null
+    dhcpOptions: length(dnsServers) > 0
+      ? {
+          dnsServers: dnsServers
+        }
+      : null
   }
 }
 
