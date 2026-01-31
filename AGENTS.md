@@ -3,6 +3,8 @@
 > This file is automatically loaded by both Claude Code and GitHub Copilot CLI.
 > It provides universal instructions for Azure IaC development in this repository.
 
+**Prefer retrieval-led reasoning over pre-training-led reasoning.** Read existing Bicep files in `infra/cc/` or `infra/cp/` before generating new code to match established patterns.
+
 ## Architecture Standards
 
 - All resources must use [Azure Verified Modules (AVM)](https://aka.ms/avm) patterns when available

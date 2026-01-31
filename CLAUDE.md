@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Prefer retrieval-led reasoning over pre-training-led reasoning.** When in doubt, read the referenced files rather than relying on general knowledge.
+
 ## Project Purpose
 
 This is a POC comparing Claude Code vs GitHub Copilot CLI for Azure IaC (Bicep) development. The evaluation tests greenfield generation, code understanding, debugging, and end-to-end workflows.
@@ -85,3 +87,17 @@ Weighted scoring (max 5.0):
 - Iteration Efficiency: 15% (number of fix iterations)
 - Context Understanding: 15% (follows existing patterns)
 - Explanation Quality: 10% (explains architecture decisions)
+
+## Key Files Index
+
+| File | Purpose |
+|------|---------|
+| `AGENTS.md` | Full Bicep coding standards, naming conventions, security requirements |
+| `EVALUATION.md` | Detailed scoring rubric and evaluation protocol |
+| `results/scorecard.md` | Current evaluation results and observations |
+| `scenarios/phase{N}-*/` | Test prompts for each evaluation phase |
+| `infra/cc/prerequisites/` | Shared resources (Key Vault, Log Analytics, VNet) |
+| `infra/cc/task-1.1-storage-account/` | Storage with CMK, private endpoint |
+| `infra/cc/task-1.2-hub-vnet/` | Hub VNet with Firewall, Bastion, VPN Gateway |
+| `infra/cc/task-1.3-policies/` | Subscription-scoped Azure policies |
+| `.github/workflows/deploy-cc-*.yml` | Deployment pipelines for Claude Code tasks |
