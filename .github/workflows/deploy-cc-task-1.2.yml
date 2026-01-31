@@ -58,7 +58,9 @@ jobs:
           RG="${{ inputs.resource_group }}"
           SUB_ID=$(az account show --query id -o tsv)
 
-          LAW_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.OperationalInsights/workspaces/law-cc-${{ inputs.environment }}-eus2"
+          # Discover Log Analytics workspace dynamically
+          LAW_NAME=$(az monitor log-analytics workspace list --resource-group "$RG" --query "[?starts_with(name, 'law-cc-')].name" -o tsv | head -1)
+          LAW_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.OperationalInsights/workspaces/${LAW_NAME}"
           echo "logAnalyticsWorkspaceId=${LAW_ID}" >> $GITHUB_OUTPUT
 
       - name: Convert bicepparam to JSON

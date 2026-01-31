@@ -59,11 +59,15 @@ jobs:
           RG="${{ inputs.resource_group }}"
           SUB_ID=$(az account show --query id -o tsv)
 
-          # Construct resource IDs based on naming convention
-          VNET_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/vnet-prereq-cc-${{ inputs.environment }}-eus2"
+          # Discover resources dynamically (Key Vault name is randomized)
+          VNET_NAME=$(az network vnet list --resource-group "$RG" --query "[?starts_with(name, 'vnet-prereq-cc-')].name" -o tsv | head -1)
+          KV_NAME=$(az keyvault list --resource-group "$RG" --query "[?starts_with(name, 'kv-cc-')].name" -o tsv | head -1)
+          LAW_NAME=$(az monitor log-analytics workspace list --resource-group "$RG" --query "[?starts_with(name, 'law-cc-')].name" -o tsv | head -1)
+
+          VNET_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}"
           SUBNET_ID="${VNET_ID}/subnets/PrivateEndpointSubnet"
-          KV_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.KeyVault/vaults/kv-cc-${{ inputs.environment }}-eus2"
-          LAW_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.OperationalInsights/workspaces/law-cc-${{ inputs.environment }}-eus2"
+          KV_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.KeyVault/vaults/${KV_NAME}"
+          LAW_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.OperationalInsights/workspaces/${LAW_NAME}"
 
           echo "subnetId=${SUBNET_ID}" >> $GITHUB_OUTPUT
           echo "keyVaultId=${KV_ID}" >> $GITHUB_OUTPUT

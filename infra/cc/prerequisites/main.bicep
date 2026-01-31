@@ -15,8 +15,9 @@ param tags object = {
 }
 
 var nameSuffix = 'cc-${environment}-eus2'
+var uniqueSuffix = uniqueString(resourceGroup().id)
 var logAnalyticsName = 'law-${nameSuffix}'
-var keyVaultName = 'kv-${nameSuffix}'
+var keyVaultName = 'kv-${nameSuffix}-${take(uniqueSuffix, 6)}'
 var vnetName = 'vnet-prereq-${nameSuffix}'
 
 // Log Analytics Workspace
