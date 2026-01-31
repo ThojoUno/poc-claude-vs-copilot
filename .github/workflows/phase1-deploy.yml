@@ -69,11 +69,18 @@ jobs:
           TASK="${{ github.event.inputs.task }}"
           TEMPLATE="infra/cp/${TASK}/main.bicep"
           PARAMS="${{ github.event.inputs.parametersFile }}"
+          PARAMS_JSON=""
           if [ -z "$PARAMS" ]; then
             PARAM_CANDIDATE="infra/cp/${TASK}/main.bicepparam"
             if [ -f "$PARAM_CANDIDATE" ]; then
               PARAMS="$PARAM_CANDIDATE"
             fi
+          fi
+
+          if [ -n "$PARAMS" ] && [[ "$PARAMS" == *.bicepparam ]]; then
+            PARAMS_JSON="${PARAMS%.bicepparam}.parameters.json"
+            az bicep build-params --file "$PARAMS" --outfile "$PARAMS_JSON"
+            PARAMS="$PARAMS_JSON"
           fi
 
           echo "template=$TEMPLATE" >> "$GITHUB_OUTPUT"
