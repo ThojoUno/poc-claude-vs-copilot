@@ -1,0 +1,342 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "languageVersion": "2.0",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "11875146122924821527"
+    }
+  },
+  "definitions": {
+    "TagSet": {
+      "type": "object",
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "costCenter": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "parameters": {
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "prod"
+      ],
+      "metadata": {
+        "description": "Deployment environment (dev or prod)."
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for resources."
+      }
+    },
+    "workloadName": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 10,
+      "metadata": {
+        "description": "Workload name used in the storage account name."
+      }
+    },
+    "regionCode": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 5,
+      "metadata": {
+        "description": "Region code for naming (e.g., eus2, wus2)."
+      }
+    },
+    "instance": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 3,
+      "metadata": {
+        "description": "Instance identifier for naming (e.g., 001)."
+      }
+    },
+    "subnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Subnet resource ID for the private endpoint."
+      }
+    },
+    "keyVaultId": {
+      "type": "string",
+      "metadata": {
+        "description": "Key Vault resource ID containing the CMK."
+      }
+    },
+    "keyName": {
+      "type": "string",
+      "metadata": {
+        "description": "Key name in Key Vault for CMK encryption."
+      }
+    },
+    "keyVersion": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional Key Vault key version for CMK. Leave empty for latest."
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Log Analytics workspace resource ID for diagnostics."
+      }
+    },
+    "tags": {
+      "$ref": "#/definitions/TagSet",
+      "metadata": {
+        "description": "Tags to apply to resources."
+      }
+    },
+    "keyVaultRoleDefinitionId": {
+      "type": "string",
+      "defaultValue": "14b46e9e-c2b7-41b4-b07b-48a6ebf60603",
+      "metadata": {
+        "description": "Role definition ID for Key Vault crypto role."
+      }
+    }
+  },
+  "variables": {
+    "toolPrefix": "cp",
+    "storageAccountName": "[toLower(take(format('st{0}{1}{2}{3}{4}', parameters('workloadName'), variables('toolPrefix'), parameters('environment'), parameters('regionCode'), parameters('instance')), 24))]",
+    "privateEndpointName": "[format('pe-{0}-blob', variables('storageAccountName'))]",
+    "privateDnsZoneName": "[format('privatelink.blob.{0}', environment().suffixes.storage)]",
+    "vnetId": "[substring(parameters('subnetId'), 0, indexOf(parameters('subnetId'), '/subnets/'))]",
+    "keyVaultIdParts": "[split(parameters('keyVaultId'), '/')]",
+    "keyVaultName": "[variables('keyVaultIdParts')[sub(length(variables('keyVaultIdParts')), 1)]]"
+  },
+  "resources": {
+    "userAssignedIdentity": {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('uai-{0}', variables('storageAccountName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]"
+    },
+    "keyVault": {
+      "existing": true,
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2023-07-01",
+      "name": "[variables('keyVaultName')]"
+    },
+    "storageAccount": {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('uai-{0}', variables('storageAccountName'))))]": {}
+        }
+      },
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "isHnsEnabled": true,
+        "supportsHttpsTrafficOnly": true,
+        "minimumTlsVersion": "TLS1_2",
+        "allowBlobPublicAccess": false,
+        "publicNetworkAccess": "[if(equals(parameters('environment'), 'prod'), 'Disabled', 'Enabled')]",
+        "networkAcls": {
+          "bypass": "AzureServices",
+          "defaultAction": "Deny"
+        },
+        "encryption": {
+          "keySource": "Microsoft.Keyvault",
+          "identity": {
+            "userAssignedIdentity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('uai-{0}', variables('storageAccountName')))]"
+          },
+          "keyvaultproperties": {
+            "keyname": "[parameters('keyName')]",
+            "keyvaulturi": "[reference('keyVault').vaultUri]",
+            "keyversion": "[if(empty(parameters('keyVersion')), null(), parameters('keyVersion'))]"
+          },
+          "services": {
+            "blob": {
+              "enabled": true
+            },
+            "file": {
+              "enabled": true
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "keyVault",
+        "userAssignedIdentity"
+      ]
+    },
+    "blobService": {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/default', variables('storageAccountName'))]",
+      "properties": {
+        "deleteRetentionPolicy": {
+          "enabled": true,
+          "days": 30
+        },
+        "containerDeleteRetentionPolicy": {
+          "enabled": true,
+          "days": 30
+        }
+      },
+      "dependsOn": [
+        "storageAccount"
+      ]
+    },
+    "privateDnsZone": {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2023-07-01",
+      "name": "[variables('privateDnsZoneName')]",
+      "location": "global",
+      "tags": "[parameters('tags')]"
+    },
+    "privateDnsZoneVnetLink": {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', variables('privateDnsZoneName'), uniqueString(variables('vnetId')))]",
+      "location": "global",
+      "properties": {
+        "virtualNetwork": {
+          "id": "[variables('vnetId')]"
+        },
+        "registrationEnabled": false
+      },
+      "dependsOn": [
+        "privateDnsZone"
+      ]
+    },
+    "privateEndpoint": {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('privateEndpointName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "subnet": {
+          "id": "[parameters('subnetId')]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "blob",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+              "groupIds": [
+                "blob"
+              ]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "storageAccount"
+      ]
+    },
+    "privateDnsZoneGroup": {
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "apiVersion": "2023-11-01",
+      "name": "[format('{0}/default', variables('privateEndpointName'))]",
+      "properties": {
+        "privateDnsZoneConfigs": [
+          {
+            "name": "[variables('privateDnsZoneName')]",
+            "properties": {
+              "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneName'))]"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "privateDnsZone",
+        "privateEndpoint"
+      ]
+    },
+    "storageDiagnostics": {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+      "name": "[format('diag-{0}', variables('storageAccountName'))]",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "storageAccount"
+      ]
+    },
+    "keyVaultRoleAssignment": {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+      "name": "[guid(parameters('keyVaultId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('uai-{0}', variables('storageAccountName'))), parameters('keyVaultRoleDefinitionId'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', parameters('keyVaultRoleDefinitionId'))]",
+        "principalId": "[reference('userAssignedIdentity').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "userAssignedIdentity"
+      ]
+    }
+  },
+  "outputs": {
+    "storageAccountId": {
+      "type": "string",
+      "metadata": {
+        "description": "Storage account resource ID."
+      },
+      "value": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+    },
+    "storageAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Storage account name."
+      },
+      "value": "[variables('storageAccountName')]"
+    },
+    "primaryBlobEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Primary blob endpoint."
+      },
+      "value": "[reference('storageAccount').primaryEndpoints.blob]"
+    },
+    "managedIdentityPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "User-assigned managed identity principal ID."
+      },
+      "value": "[reference('userAssignedIdentity').principalId]"
+    }
+  }
+}

@@ -1,0 +1,1327 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-08-01/tenantDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "1232713660471080061"
+    }
+  },
+  "parameters": {
+    "prefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Prefix for management group naming (e.g., contoso-cp)."
+      }
+    },
+    "allowedLocations": {
+      "type": "array",
+      "metadata": {
+        "description": "Allowed locations for the built-in policy assignment."
+      }
+    },
+    "allowedVmSkus": {
+      "type": "array",
+      "metadata": {
+        "description": "Allowed VM SKUs for the Sandbox policy assignment."
+      }
+    },
+    "platformAdminsGroupId": {
+      "type": "string",
+      "metadata": {
+        "description": "Platform Admins group object ID."
+      }
+    },
+    "lzContributorsGroupId": {
+      "type": "string",
+      "metadata": {
+        "description": "Landing Zone Contributors group object ID."
+      }
+    },
+    "securityReadersGroupId": {
+      "type": "string",
+      "metadata": {
+        "description": "Security Readers group object ID."
+      }
+    }
+  },
+  "variables": {
+    "contosoMgName": "[parameters('prefix')]",
+    "platformMgName": "[format('{0}-platform', parameters('prefix'))]",
+    "managementMgName": "[format('{0}-platform-management', parameters('prefix'))]",
+    "connectivityMgName": "[format('{0}-platform-connectivity', parameters('prefix'))]",
+    "identityMgName": "[format('{0}-platform-identity', parameters('prefix'))]",
+    "landingZonesMgName": "[format('{0}-landingzones', parameters('prefix'))]",
+    "corpMgName": "[format('{0}-landingzones-corp', parameters('prefix'))]",
+    "onlineMgName": "[format('{0}-landingzones-online', parameters('prefix'))]",
+    "sandboxMgName": "[format('{0}-sandbox', parameters('prefix'))]",
+    "decommissionedMgName": "[format('{0}-decommissioned', parameters('prefix'))]",
+    "contosoMgId": "[tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName'))]",
+    "platformMgId": "[tenantResourceId('Microsoft.Management/managementGroups', variables('platformMgName'))]",
+    "landingZonesMgId": "[tenantResourceId('Microsoft.Management/managementGroups', variables('landingZonesMgName'))]",
+    "corpMgId": "[tenantResourceId('Microsoft.Management/managementGroups', variables('corpMgName'))]",
+    "sandboxMgId": "[tenantResourceId('Microsoft.Management/managementGroups', variables('sandboxMgName'))]",
+    "allowedLocationsPolicyId": "/providers/Microsoft.Authorization/policyDefinitions/e56962a6-4747-49cd-b67b-bf8b01975c4c",
+    "ownerRoleDefinitionId": "8e3af657-a8ff-443c-a75c-2fe8c4bcb635",
+    "contributorRoleDefinitionId": "b24988ac-6180-42a0-ab88-20f7382dd24c",
+    "securityReaderRoleDefinitionId": "39bc4728-0917-49c7-9d2c-d95423bc2eb4"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "management-groups",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-08-01/tenantDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "12521502916970800712"
+            }
+          },
+          "parameters": {
+            "prefix": {
+              "type": "string",
+              "minLength": 3,
+              "metadata": {
+                "description": "Prefix for management group naming (e.g., contoso-cp)."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Management/managementGroups",
+              "apiVersion": "2023-04-01",
+              "name": "[parameters('prefix')]",
+              "properties": {
+                "displayName": "[parameters('prefix')]"
+              }
+            },
+            {
+              "type": "Microsoft.Management/managementGroups",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-platform', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Platform",
+                "details": {
+                  "parent": {
+                    "id": "[tenantResourceId('Microsoft.Management/managementGroups', parameters('prefix'))]"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups', parameters('prefix'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Management/managementGroups",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-platform-management', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Management",
+                "details": {
+                  "parent": {
+                    "id": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-platform', parameters('prefix')))]"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-platform', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Management/managementGroups",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-platform-connectivity', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Connectivity",
+                "details": {
+                  "parent": {
+                    "id": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-platform', parameters('prefix')))]"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-platform', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Management/managementGroups",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-platform-identity', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Identity",
+                "details": {
+                  "parent": {
+                    "id": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-platform', parameters('prefix')))]"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-platform', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Management/managementGroups",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-landingzones', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Landing Zones",
+                "details": {
+                  "parent": {
+                    "id": "[tenantResourceId('Microsoft.Management/managementGroups', parameters('prefix'))]"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups', parameters('prefix'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Management/managementGroups",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-landingzones-corp', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Corp",
+                "details": {
+                  "parent": {
+                    "id": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-landingzones', parameters('prefix')))]"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-landingzones', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Management/managementGroups",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-landingzones-online', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Online",
+                "details": {
+                  "parent": {
+                    "id": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-landingzones', parameters('prefix')))]"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-landingzones', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Management/managementGroups",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-sandbox', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Sandbox",
+                "details": {
+                  "parent": {
+                    "id": "[tenantResourceId('Microsoft.Management/managementGroups', parameters('prefix'))]"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups', parameters('prefix'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Management/managementGroups",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-decommissioned', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Decommissioned",
+                "details": {
+                  "parent": {
+                    "id": "[tenantResourceId('Microsoft.Management/managementGroups', parameters('prefix'))]"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups', parameters('prefix'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "contosoId": {
+              "type": "string",
+              "metadata": {
+                "description": "Contoso management group ID."
+              },
+              "value": "[tenantResourceId('Microsoft.Management/managementGroups', parameters('prefix'))]"
+            },
+            "platformId": {
+              "type": "string",
+              "metadata": {
+                "description": "Platform management group ID."
+              },
+              "value": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-platform', parameters('prefix')))]"
+            },
+            "managementId": {
+              "type": "string",
+              "metadata": {
+                "description": "Management management group ID."
+              },
+              "value": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-platform-management', parameters('prefix')))]"
+            },
+            "connectivityId": {
+              "type": "string",
+              "metadata": {
+                "description": "Connectivity management group ID."
+              },
+              "value": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-platform-connectivity', parameters('prefix')))]"
+            },
+            "identityId": {
+              "type": "string",
+              "metadata": {
+                "description": "Identity management group ID."
+              },
+              "value": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-platform-identity', parameters('prefix')))]"
+            },
+            "landingZonesId": {
+              "type": "string",
+              "metadata": {
+                "description": "Landing Zones management group ID."
+              },
+              "value": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-landingzones', parameters('prefix')))]"
+            },
+            "corpId": {
+              "type": "string",
+              "metadata": {
+                "description": "Corp management group ID."
+              },
+              "value": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-landingzones-corp', parameters('prefix')))]"
+            },
+            "onlineId": {
+              "type": "string",
+              "metadata": {
+                "description": "Online management group ID."
+              },
+              "value": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-landingzones-online', parameters('prefix')))]"
+            },
+            "sandboxId": {
+              "type": "string",
+              "metadata": {
+                "description": "Sandbox management group ID."
+              },
+              "value": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-sandbox', parameters('prefix')))]"
+            },
+            "decommissionedId": {
+              "type": "string",
+              "metadata": {
+                "description": "Decommissioned management group ID."
+              },
+              "value": "[tenantResourceId('Microsoft.Management/managementGroups', format('{0}-decommissioned', parameters('prefix')))]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "policy-definitions",
+      "scope": "[format('Microsoft.Management/managementGroups/{0}', variables('contosoMgName'))]",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "7986603082916337835"
+            }
+          },
+          "parameters": {
+            "prefix": {
+              "type": "string",
+              "minLength": 3,
+              "metadata": {
+                "description": "Prefix for policy definition names."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/policyDefinitions",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-require-tls12', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Require TLS 1.2 for Storage Accounts",
+                "policyType": "Custom",
+                "mode": "Indexed",
+                "policyRule": {
+                  "if": {
+                    "allOf": [
+                      {
+                        "field": "type",
+                        "equals": "Microsoft.Storage/storageAccounts"
+                      },
+                      {
+                        "anyOf": [
+                          {
+                            "field": "Microsoft.Storage/storageAccounts/minimumTlsVersion",
+                            "notEquals": "TLS1_2"
+                          },
+                          {
+                            "field": "Microsoft.Storage/storageAccounts/minimumTlsVersion",
+                            "exists": "false"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "then": {
+                    "effect": "Deny"
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/policyDefinitions",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-require-private-endpoints', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Require private endpoints for PaaS",
+                "policyType": "Custom",
+                "mode": "Indexed",
+                "policyRule": {
+                  "if": {
+                    "anyOf": [
+                      {
+                        "allOf": [
+                          {
+                            "field": "type",
+                            "equals": "Microsoft.Storage/storageAccounts"
+                          },
+                          {
+                            "field": "Microsoft.Storage/storageAccounts/privateEndpointConnections[*].id",
+                            "exists": "false"
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "type",
+                            "equals": "Microsoft.KeyVault/vaults"
+                          },
+                          {
+                            "field": "Microsoft.KeyVault/vaults/privateEndpointConnections[*].id",
+                            "exists": "false"
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "type",
+                            "equals": "Microsoft.Sql/servers"
+                          },
+                          {
+                            "field": "Microsoft.Sql/servers/privateEndpointConnections[*].id",
+                            "exists": "false"
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "type",
+                            "equals": "Microsoft.DocumentDB/databaseAccounts"
+                          },
+                          {
+                            "field": "Microsoft.DocumentDB/databaseAccounts/privateEndpointConnections[*].id",
+                            "exists": "false"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "then": {
+                    "effect": "Audit"
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/policyDefinitions",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}-allowed-vm-skus', parameters('prefix'))]",
+              "properties": {
+                "displayName": "Allowed VM SKUs",
+                "policyType": "Custom",
+                "mode": "Indexed",
+                "parameters": {
+                  "allowedVmSkus": {
+                    "type": "Array",
+                    "metadata": {
+                      "displayName": "Allowed VM SKUs"
+                    }
+                  }
+                },
+                "policyRule": {
+                  "if": {
+                    "allOf": [
+                      {
+                        "field": "type",
+                        "equals": "Microsoft.Compute/virtualMachines"
+                      },
+                      {
+                        "field": "Microsoft.Compute/virtualMachines/sku.name",
+                        "notIn": "[[parameters(\"allowedVmSkus\")]"
+                      }
+                    ]
+                  },
+                  "then": {
+                    "effect": "Deny"
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "requireTls12Id": {
+              "type": "string",
+              "metadata": {
+                "description": "TLS 1.2 policy definition ID."
+              },
+              "value": "[extensionResourceId(managementGroup().id, 'Microsoft.Authorization/policyDefinitions', format('{0}-require-tls12', parameters('prefix')))]"
+            },
+            "requirePrivateEndpointsId": {
+              "type": "string",
+              "metadata": {
+                "description": "Private endpoint policy definition ID."
+              },
+              "value": "[extensionResourceId(managementGroup().id, 'Microsoft.Authorization/policyDefinitions', format('{0}-require-private-endpoints', parameters('prefix')))]"
+            },
+            "allowedVmSkusPolicyId": {
+              "type": "string",
+              "metadata": {
+                "description": "Allowed VM SKUs policy definition ID."
+              },
+              "value": "[extensionResourceId(managementGroup().id, 'Microsoft.Authorization/policyDefinitions', format('{0}-allowed-vm-skus', parameters('prefix')))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[tenantResourceId('Microsoft.Resources/deployments', 'management-groups')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "policy-tls12-landingzones",
+      "scope": "[format('Microsoft.Management/managementGroups/{0}', variables('landingZonesMgName'))]",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "assignmentName": {
+            "value": "[format('{0}-tls12-landingzones', parameters('prefix'))]"
+          },
+          "policyDefinitionId": {
+            "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName')), 'Microsoft.Resources/deployments', 'policy-definitions'), '2025-04-01').outputs.requireTls12Id.value]"
+          },
+          "displayName": {
+            "value": "Require TLS 1.2 for Storage Accounts"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "4079368135678667646"
+            }
+          },
+          "parameters": {
+            "assignmentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy assignment name."
+              }
+            },
+            "policyDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy definition ID to assign."
+              }
+            },
+            "displayName": {
+              "type": "string",
+              "metadata": {
+                "description": "Display name for the policy assignment."
+              }
+            },
+            "assignmentParameters": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional parameters object for the policy assignment."
+              }
+            },
+            "enforcementMode": {
+              "type": "string",
+              "defaultValue": "Default",
+              "allowedValues": [
+                "Default",
+                "DoNotEnforce"
+              ],
+              "metadata": {
+                "description": "Policy enforcement mode."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/policyAssignments",
+              "apiVersion": "2023-04-01",
+              "name": "[parameters('assignmentName')]",
+              "properties": {
+                "displayName": "[parameters('displayName')]",
+                "policyDefinitionId": "[parameters('policyDefinitionId')]",
+                "enforcementMode": "[parameters('enforcementMode')]",
+                "parameters": "[if(empty(parameters('assignmentParameters')), null(), parameters('assignmentParameters'))]"
+              }
+            }
+          ],
+          "outputs": {
+            "assignmentId": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy assignment ID."
+              },
+              "value": "[extensionResourceId(managementGroup().id, 'Microsoft.Authorization/policyAssignments', parameters('assignmentName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[tenantResourceId('Microsoft.Resources/deployments', 'management-groups')]",
+        "[extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName')), 'Microsoft.Resources/deployments', 'policy-definitions')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "policy-private-endpoints-corp",
+      "scope": "[format('Microsoft.Management/managementGroups/{0}', variables('corpMgName'))]",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "assignmentName": {
+            "value": "[format('{0}-private-endpoints-corp', parameters('prefix'))]"
+          },
+          "policyDefinitionId": {
+            "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName')), 'Microsoft.Resources/deployments', 'policy-definitions'), '2025-04-01').outputs.requirePrivateEndpointsId.value]"
+          },
+          "displayName": {
+            "value": "Require private endpoints for PaaS"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "4079368135678667646"
+            }
+          },
+          "parameters": {
+            "assignmentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy assignment name."
+              }
+            },
+            "policyDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy definition ID to assign."
+              }
+            },
+            "displayName": {
+              "type": "string",
+              "metadata": {
+                "description": "Display name for the policy assignment."
+              }
+            },
+            "assignmentParameters": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional parameters object for the policy assignment."
+              }
+            },
+            "enforcementMode": {
+              "type": "string",
+              "defaultValue": "Default",
+              "allowedValues": [
+                "Default",
+                "DoNotEnforce"
+              ],
+              "metadata": {
+                "description": "Policy enforcement mode."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/policyAssignments",
+              "apiVersion": "2023-04-01",
+              "name": "[parameters('assignmentName')]",
+              "properties": {
+                "displayName": "[parameters('displayName')]",
+                "policyDefinitionId": "[parameters('policyDefinitionId')]",
+                "enforcementMode": "[parameters('enforcementMode')]",
+                "parameters": "[if(empty(parameters('assignmentParameters')), null(), parameters('assignmentParameters'))]"
+              }
+            }
+          ],
+          "outputs": {
+            "assignmentId": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy assignment ID."
+              },
+              "value": "[extensionResourceId(managementGroup().id, 'Microsoft.Authorization/policyAssignments', parameters('assignmentName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[tenantResourceId('Microsoft.Resources/deployments', 'management-groups')]",
+        "[extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName')), 'Microsoft.Resources/deployments', 'policy-definitions')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "policy-allowed-vm-skus-sandbox",
+      "scope": "[format('Microsoft.Management/managementGroups/{0}', variables('sandboxMgName'))]",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "assignmentName": {
+            "value": "[format('{0}-allowed-vm-skus-sandbox', parameters('prefix'))]"
+          },
+          "policyDefinitionId": {
+            "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName')), 'Microsoft.Resources/deployments', 'policy-definitions'), '2025-04-01').outputs.allowedVmSkusPolicyId.value]"
+          },
+          "displayName": {
+            "value": "Allowed VM SKUs"
+          },
+          "assignmentParameters": {
+            "value": {
+              "allowedVmSkus": {
+                "value": "[parameters('allowedVmSkus')]"
+              }
+            }
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "4079368135678667646"
+            }
+          },
+          "parameters": {
+            "assignmentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy assignment name."
+              }
+            },
+            "policyDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy definition ID to assign."
+              }
+            },
+            "displayName": {
+              "type": "string",
+              "metadata": {
+                "description": "Display name for the policy assignment."
+              }
+            },
+            "assignmentParameters": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional parameters object for the policy assignment."
+              }
+            },
+            "enforcementMode": {
+              "type": "string",
+              "defaultValue": "Default",
+              "allowedValues": [
+                "Default",
+                "DoNotEnforce"
+              ],
+              "metadata": {
+                "description": "Policy enforcement mode."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/policyAssignments",
+              "apiVersion": "2023-04-01",
+              "name": "[parameters('assignmentName')]",
+              "properties": {
+                "displayName": "[parameters('displayName')]",
+                "policyDefinitionId": "[parameters('policyDefinitionId')]",
+                "enforcementMode": "[parameters('enforcementMode')]",
+                "parameters": "[if(empty(parameters('assignmentParameters')), null(), parameters('assignmentParameters'))]"
+              }
+            }
+          ],
+          "outputs": {
+            "assignmentId": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy assignment ID."
+              },
+              "value": "[extensionResourceId(managementGroup().id, 'Microsoft.Authorization/policyAssignments', parameters('assignmentName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[tenantResourceId('Microsoft.Resources/deployments', 'management-groups')]",
+        "[extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName')), 'Microsoft.Resources/deployments', 'policy-definitions')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "policy-allowed-locations-contoso",
+      "scope": "[format('Microsoft.Management/managementGroups/{0}', variables('contosoMgName'))]",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "assignmentName": {
+            "value": "[format('{0}-allowed-locations-contoso', parameters('prefix'))]"
+          },
+          "policyDefinitionId": {
+            "value": "[variables('allowedLocationsPolicyId')]"
+          },
+          "displayName": {
+            "value": "Allowed locations"
+          },
+          "assignmentParameters": {
+            "value": {
+              "listOfAllowedLocations": {
+                "value": "[parameters('allowedLocations')]"
+              }
+            }
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "4079368135678667646"
+            }
+          },
+          "parameters": {
+            "assignmentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy assignment name."
+              }
+            },
+            "policyDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy definition ID to assign."
+              }
+            },
+            "displayName": {
+              "type": "string",
+              "metadata": {
+                "description": "Display name for the policy assignment."
+              }
+            },
+            "assignmentParameters": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional parameters object for the policy assignment."
+              }
+            },
+            "enforcementMode": {
+              "type": "string",
+              "defaultValue": "Default",
+              "allowedValues": [
+                "Default",
+                "DoNotEnforce"
+              ],
+              "metadata": {
+                "description": "Policy enforcement mode."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/policyAssignments",
+              "apiVersion": "2023-04-01",
+              "name": "[parameters('assignmentName')]",
+              "properties": {
+                "displayName": "[parameters('displayName')]",
+                "policyDefinitionId": "[parameters('policyDefinitionId')]",
+                "enforcementMode": "[parameters('enforcementMode')]",
+                "parameters": "[if(empty(parameters('assignmentParameters')), null(), parameters('assignmentParameters'))]"
+              }
+            }
+          ],
+          "outputs": {
+            "assignmentId": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy assignment ID."
+              },
+              "value": "[extensionResourceId(managementGroup().id, 'Microsoft.Authorization/policyAssignments', parameters('assignmentName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[tenantResourceId('Microsoft.Resources/deployments', 'management-groups')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "role-platform-owner",
+      "scope": "[format('Microsoft.Management/managementGroups/{0}', variables('platformMgName'))]",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[parameters('platformAdminsGroupId')]"
+          },
+          "roleDefinitionId": {
+            "value": "[variables('ownerRoleDefinitionId')]"
+          },
+          "scopeId": {
+            "value": "[variables('platformMgId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "5179889493606394266"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal object ID for the role assignment."
+              }
+            },
+            "roleDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "Role definition ID to assign."
+              }
+            },
+            "scopeId": {
+              "type": "string",
+              "metadata": {
+                "description": "Scope ID used for deterministic role assignment naming."
+              }
+            },
+            "principalType": {
+              "type": "string",
+              "defaultValue": "Group",
+              "allowedValues": [
+                "Group",
+                "ServicePrincipal",
+                "User"
+              ],
+              "metadata": {
+                "description": "Principal type for the role assignment."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(parameters('scopeId'), parameters('principalId'), parameters('roleDefinitionId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionId'))]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "[parameters('principalType')]"
+              }
+            }
+          ],
+          "outputs": {
+            "assignmentId": {
+              "type": "string",
+              "metadata": {
+                "description": "Role assignment ID."
+              },
+              "value": "[extensionResourceId(managementGroup().id, 'Microsoft.Authorization/roleAssignments', guid(parameters('scopeId'), parameters('principalId'), parameters('roleDefinitionId')))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[tenantResourceId('Microsoft.Resources/deployments', 'management-groups')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "role-landingzones-contributor",
+      "scope": "[format('Microsoft.Management/managementGroups/{0}', variables('landingZonesMgName'))]",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[parameters('lzContributorsGroupId')]"
+          },
+          "roleDefinitionId": {
+            "value": "[variables('contributorRoleDefinitionId')]"
+          },
+          "scopeId": {
+            "value": "[variables('landingZonesMgId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "5179889493606394266"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal object ID for the role assignment."
+              }
+            },
+            "roleDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "Role definition ID to assign."
+              }
+            },
+            "scopeId": {
+              "type": "string",
+              "metadata": {
+                "description": "Scope ID used for deterministic role assignment naming."
+              }
+            },
+            "principalType": {
+              "type": "string",
+              "defaultValue": "Group",
+              "allowedValues": [
+                "Group",
+                "ServicePrincipal",
+                "User"
+              ],
+              "metadata": {
+                "description": "Principal type for the role assignment."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(parameters('scopeId'), parameters('principalId'), parameters('roleDefinitionId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionId'))]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "[parameters('principalType')]"
+              }
+            }
+          ],
+          "outputs": {
+            "assignmentId": {
+              "type": "string",
+              "metadata": {
+                "description": "Role assignment ID."
+              },
+              "value": "[extensionResourceId(managementGroup().id, 'Microsoft.Authorization/roleAssignments', guid(parameters('scopeId'), parameters('principalId'), parameters('roleDefinitionId')))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[tenantResourceId('Microsoft.Resources/deployments', 'management-groups')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "role-contoso-security-reader",
+      "scope": "[format('Microsoft.Management/managementGroups/{0}', variables('contosoMgName'))]",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[parameters('securityReadersGroupId')]"
+          },
+          "roleDefinitionId": {
+            "value": "[variables('securityReaderRoleDefinitionId')]"
+          },
+          "scopeId": {
+            "value": "[variables('contosoMgId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "5179889493606394266"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal object ID for the role assignment."
+              }
+            },
+            "roleDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "Role definition ID to assign."
+              }
+            },
+            "scopeId": {
+              "type": "string",
+              "metadata": {
+                "description": "Scope ID used for deterministic role assignment naming."
+              }
+            },
+            "principalType": {
+              "type": "string",
+              "defaultValue": "Group",
+              "allowedValues": [
+                "Group",
+                "ServicePrincipal",
+                "User"
+              ],
+              "metadata": {
+                "description": "Principal type for the role assignment."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(parameters('scopeId'), parameters('principalId'), parameters('roleDefinitionId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionId'))]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "[parameters('principalType')]"
+              }
+            }
+          ],
+          "outputs": {
+            "assignmentId": {
+              "type": "string",
+              "metadata": {
+                "description": "Role assignment ID."
+              },
+              "value": "[extensionResourceId(managementGroup().id, 'Microsoft.Authorization/roleAssignments', guid(parameters('scopeId'), parameters('principalId'), parameters('roleDefinitionId')))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[tenantResourceId('Microsoft.Resources/deployments', 'management-groups')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "contosoId": {
+      "type": "string",
+      "metadata": {
+        "description": "Contoso management group ID."
+      },
+      "value": "[variables('contosoMgId')]"
+    },
+    "platformId": {
+      "type": "string",
+      "metadata": {
+        "description": "Platform management group ID."
+      },
+      "value": "[variables('platformMgId')]"
+    },
+    "landingZonesId": {
+      "type": "string",
+      "metadata": {
+        "description": "Landing Zones management group ID."
+      },
+      "value": "[variables('landingZonesMgId')]"
+    },
+    "corpId": {
+      "type": "string",
+      "metadata": {
+        "description": "Corp management group ID."
+      },
+      "value": "[variables('corpMgId')]"
+    },
+    "sandboxId": {
+      "type": "string",
+      "metadata": {
+        "description": "Sandbox management group ID."
+      },
+      "value": "[variables('sandboxMgId')]"
+    },
+    "requireTls12PolicyDefinitionId": {
+      "type": "string",
+      "metadata": {
+        "description": "TLS 1.2 policy definition ID."
+      },
+      "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName')), 'Microsoft.Resources/deployments', 'policy-definitions'), '2025-04-01').outputs.requireTls12Id.value]"
+    },
+    "requirePrivateEndpointsPolicyDefinitionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Private endpoints policy definition ID."
+      },
+      "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName')), 'Microsoft.Resources/deployments', 'policy-definitions'), '2025-04-01').outputs.requirePrivateEndpointsId.value]"
+    },
+    "allowedVmSkusPolicyDefinitionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Allowed VM SKUs policy definition ID."
+      },
+      "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName')), 'Microsoft.Resources/deployments', 'policy-definitions'), '2025-04-01').outputs.allowedVmSkusPolicyId.value]"
+    },
+    "tlsAssignmentId": {
+      "type": "string",
+      "metadata": {
+        "description": "TLS 1.2 policy assignment ID."
+      },
+      "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('landingZonesMgName')), 'Microsoft.Resources/deployments', 'policy-tls12-landingzones'), '2025-04-01').outputs.assignmentId.value]"
+    },
+    "privateEndpointsAssignmentId": {
+      "type": "string",
+      "metadata": {
+        "description": "Private endpoints policy assignment ID."
+      },
+      "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('corpMgName')), 'Microsoft.Resources/deployments', 'policy-private-endpoints-corp'), '2025-04-01').outputs.assignmentId.value]"
+    },
+    "allowedVmSkusAssignmentId": {
+      "type": "string",
+      "metadata": {
+        "description": "Allowed VM SKUs policy assignment ID."
+      },
+      "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('sandboxMgName')), 'Microsoft.Resources/deployments', 'policy-allowed-vm-skus-sandbox'), '2025-04-01').outputs.assignmentId.value]"
+    },
+    "allowedLocationsAssignmentId": {
+      "type": "string",
+      "metadata": {
+        "description": "Allowed locations policy assignment ID."
+      },
+      "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName')), 'Microsoft.Resources/deployments', 'policy-allowed-locations-contoso'), '2025-04-01').outputs.assignmentId.value]"
+    },
+    "platformOwnerAssignmentId": {
+      "type": "string",
+      "metadata": {
+        "description": "Platform Owner role assignment ID."
+      },
+      "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('platformMgName')), 'Microsoft.Resources/deployments', 'role-platform-owner'), '2025-04-01').outputs.assignmentId.value]"
+    },
+    "landingZonesContributorAssignmentId": {
+      "type": "string",
+      "metadata": {
+        "description": "Landing Zones Contributor role assignment ID."
+      },
+      "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('landingZonesMgName')), 'Microsoft.Resources/deployments', 'role-landingzones-contributor'), '2025-04-01').outputs.assignmentId.value]"
+    },
+    "securityReaderAssignmentId": {
+      "type": "string",
+      "metadata": {
+        "description": "Security Reader role assignment ID."
+      },
+      "value": "[reference(extensionResourceId(tenantResourceId('Microsoft.Management/managementGroups', variables('contosoMgName')), 'Microsoft.Resources/deployments', 'role-contoso-security-reader'), '2025-04-01').outputs.assignmentId.value]"
+    }
+  }
+}

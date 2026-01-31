@@ -1,0 +1,591 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "languageVersion": "2.0",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "7954225602129731051"
+    }
+  },
+  "definitions": {
+    "TagSet": {
+      "type": "object",
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "costCenter": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "parameters": {
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "prod"
+      ],
+      "metadata": {
+        "description": "Deployment environment (dev or prod)."
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for resources."
+      }
+    },
+    "addressSpace": {
+      "type": "string",
+      "defaultValue": "10.0.0.0/16",
+      "metadata": {
+        "description": "Address space for the hub virtual network."
+      }
+    },
+    "dnsServers": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Custom DNS servers for the VNet. Leave empty for Azure-provided."
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Log Analytics workspace resource ID for diagnostics."
+      }
+    },
+    "tags": {
+      "$ref": "#/definitions/TagSet",
+      "metadata": {
+        "description": "Tags to apply to resources."
+      }
+    }
+  },
+  "variables": {
+    "toolPrefix": "cp",
+    "instance": "001",
+    "vnetName": "[format('vnet-hub-{0}-{1}-{2}-{3}', variables('toolPrefix'), parameters('environment'), parameters('location'), variables('instance'))]",
+    "firewallPipName": "[format('pip-fw-{0}-{1}-{2}-{3}', variables('toolPrefix'), parameters('environment'), parameters('location'), variables('instance'))]",
+    "bastionPipName": "[format('pip-bas-{0}-{1}-{2}-{3}', variables('toolPrefix'), parameters('environment'), parameters('location'), variables('instance'))]",
+    "gatewayPipName": "[format('pip-vgw-{0}-{1}-{2}-{3}', variables('toolPrefix'), parameters('environment'), parameters('location'), variables('instance'))]",
+    "firewallName": "[format('fw-hub-{0}-{1}-{2}-{3}', variables('toolPrefix'), parameters('environment'), parameters('location'), variables('instance'))]",
+    "bastionName": "[format('bas-hub-{0}-{1}-{2}-{3}', variables('toolPrefix'), parameters('environment'), parameters('location'), variables('instance'))]",
+    "gatewayName": "[format('vgw-hub-{0}-{1}-{2}-{3}', variables('toolPrefix'), parameters('environment'), parameters('location'), variables('instance'))]",
+    "sharedServicesNsgName": "[format('nsg-shared-{0}-{1}-{2}-{3}', variables('toolPrefix'), parameters('environment'), parameters('location'), variables('instance'))]",
+    "sharedServicesRouteTableName": "[format('rt-shared-{0}-{1}-{2}-{3}', variables('toolPrefix'), parameters('environment'), parameters('location'), variables('instance'))]",
+    "firewallSubnetPrefix": "10.0.0.0/26",
+    "bastionSubnetPrefix": "10.0.0.64/26",
+    "gatewaySubnetPrefix": "10.0.0.128/27",
+    "sharedServicesSubnetPrefix": "10.0.1.0/24"
+  },
+  "resources": {
+    "vnet": {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[parameters('addressSpace')]"
+          ]
+        },
+        "dhcpOptions": "[if(greater(length(parameters('dnsServers')), 0), createObject('dnsServers', parameters('dnsServers')), null())]"
+      }
+    },
+    "firewallSubnet": {
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "apiVersion": "2023-11-01",
+      "name": "[format('{0}/AzureFirewallSubnet', variables('vnetName'))]",
+      "properties": {
+        "addressPrefix": "[variables('firewallSubnetPrefix')]"
+      },
+      "dependsOn": [
+        "vnet"
+      ]
+    },
+    "bastionSubnet": {
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "apiVersion": "2023-11-01",
+      "name": "[format('{0}/AzureBastionSubnet', variables('vnetName'))]",
+      "properties": {
+        "addressPrefix": "[variables('bastionSubnetPrefix')]"
+      },
+      "dependsOn": [
+        "vnet"
+      ]
+    },
+    "gatewaySubnet": {
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "apiVersion": "2023-11-01",
+      "name": "[format('{0}/GatewaySubnet', variables('vnetName'))]",
+      "properties": {
+        "addressPrefix": "[variables('gatewaySubnetPrefix')]"
+      },
+      "dependsOn": [
+        "vnet"
+      ]
+    },
+    "sharedServicesNsg": {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('sharedServicesNsgName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]"
+    },
+    "firewallPublicIp": {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('firewallPipName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static"
+      },
+      "tags": "[parameters('tags')]"
+    },
+    "azureFirewall": {
+      "type": "Microsoft.Network/azureFirewalls",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('firewallName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "sku": {
+          "name": "AZFW_VNet",
+          "tier": "Standard"
+        },
+        "threatIntelMode": "Alert",
+        "ipConfigurations": [
+          {
+            "name": "azureFirewallIpConfig",
+            "properties": {
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/AzureFirewallSubnet', variables('vnetName')), '/')[0], split(format('{0}/AzureFirewallSubnet', variables('vnetName')), '/')[1])]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('firewallPipName'))]"
+              }
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "firewallPublicIp",
+        "firewallSubnet"
+      ]
+    },
+    "bastionPublicIp": {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('bastionPipName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static"
+      },
+      "tags": "[parameters('tags')]"
+    },
+    "bastionHost": {
+      "type": "Microsoft.Network/bastionHosts",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('bastionName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "enableTunneling": true,
+        "enableIpConnect": true,
+        "enableShareableLink": true,
+        "ipConfigurations": [
+          {
+            "name": "bastionIpConfig",
+            "properties": {
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/AzureBastionSubnet', variables('vnetName')), '/')[0], split(format('{0}/AzureBastionSubnet', variables('vnetName')), '/')[1])]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('bastionPipName'))]"
+              }
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "bastionPublicIp",
+        "bastionSubnet"
+      ]
+    },
+    "gatewayPublicIp": {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('gatewayPipName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static"
+      },
+      "tags": "[parameters('tags')]"
+    },
+    "vpnGateway": {
+      "type": "Microsoft.Network/virtualNetworkGateways",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('gatewayName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "gatewayType": "Vpn",
+        "vpnType": "RouteBased",
+        "enableBgp": true,
+        "bgpSettings": {
+          "asn": 65515
+        },
+        "activeActive": false,
+        "sku": {
+          "name": "[if(equals(parameters('environment'), 'prod'), 'VpnGw2', 'VpnGw1')]",
+          "tier": "[if(equals(parameters('environment'), 'prod'), 'VpnGw2', 'VpnGw1')]"
+        },
+        "ipConfigurations": [
+          {
+            "name": "gatewayIpConfig",
+            "properties": {
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/GatewaySubnet', variables('vnetName')), '/')[0], split(format('{0}/GatewaySubnet', variables('vnetName')), '/')[1])]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('gatewayPipName'))]"
+              }
+            }
+          }
+        ],
+        "generation": "Generation2"
+      },
+      "dependsOn": [
+        "gatewayPublicIp",
+        "gatewaySubnet"
+      ]
+    },
+    "sharedServicesRouteTable": {
+      "type": "Microsoft.Network/routeTables",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('sharedServicesRouteTableName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "disableBgpRoutePropagation": true,
+        "routes": [
+          {
+            "name": "default-to-firewall",
+            "properties": {
+              "addressPrefix": "0.0.0.0/0",
+              "nextHopType": "VirtualAppliance",
+              "nextHopIpAddress": "[reference('azureFirewall').ipConfigurations[0].privateIPAddress]"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "azureFirewall"
+      ]
+    },
+    "sharedServicesSubnet": {
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "apiVersion": "2023-11-01",
+      "name": "[format('{0}/SharedServicesSubnet', variables('vnetName'))]",
+      "properties": {
+        "addressPrefix": "[variables('sharedServicesSubnetPrefix')]",
+        "routeTable": {
+          "id": "[resourceId('Microsoft.Network/routeTables', variables('sharedServicesRouteTableName'))]"
+        },
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('sharedServicesNsgName'))]"
+        }
+      },
+      "dependsOn": [
+        "sharedServicesNsg",
+        "sharedServicesRouteTable",
+        "vnet"
+      ]
+    },
+    "vnetDiagnostics": {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+      "name": "[format('diag-{0}', variables('vnetName'))]",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "vnet"
+      ]
+    },
+    "firewallDiagnostics": {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Network/azureFirewalls', variables('firewallName'))]",
+      "name": "[format('diag-{0}', variables('firewallName'))]",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "azureFirewall"
+      ]
+    },
+    "firewallPipDiagnostics": {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Network/publicIPAddresses', variables('firewallPipName'))]",
+      "name": "[format('diag-{0}', variables('firewallPipName'))]",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "firewallPublicIp"
+      ]
+    },
+    "bastionDiagnostics": {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Network/bastionHosts', variables('bastionName'))]",
+      "name": "[format('diag-{0}', variables('bastionName'))]",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "bastionHost"
+      ]
+    },
+    "bastionPipDiagnostics": {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Network/publicIPAddresses', variables('bastionPipName'))]",
+      "name": "[format('diag-{0}', variables('bastionPipName'))]",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "bastionPublicIp"
+      ]
+    },
+    "gatewayDiagnostics": {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Network/virtualNetworkGateways', variables('gatewayName'))]",
+      "name": "[format('diag-{0}', variables('gatewayName'))]",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "vpnGateway"
+      ]
+    },
+    "gatewayPipDiagnostics": {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Network/publicIPAddresses', variables('gatewayPipName'))]",
+      "name": "[format('diag-{0}', variables('gatewayPipName'))]",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "gatewayPublicIp"
+      ]
+    },
+    "routeTableDiagnostics": {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Network/routeTables', variables('sharedServicesRouteTableName'))]",
+      "name": "[format('diag-{0}', variables('sharedServicesRouteTableName'))]",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "sharedServicesRouteTable"
+      ]
+    },
+    "sharedServicesNsgDiagnostics": {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('sharedServicesNsgName'))]",
+      "name": "[format('diag-{0}', variables('sharedServicesNsgName'))]",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "sharedServicesNsg"
+      ]
+    }
+  },
+  "outputs": {
+    "vnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Virtual network resource ID."
+      },
+      "value": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+    },
+    "firewallPrivateIp": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure Firewall private IP address."
+      },
+      "value": "[reference('azureFirewall').ipConfigurations[0].privateIPAddress]"
+    },
+    "firewallPublicIp": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure Firewall public IP address."
+      },
+      "value": "[reference('firewallPublicIp').ipAddress]"
+    },
+    "bastionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure Bastion resource ID."
+      },
+      "value": "[resourceId('Microsoft.Network/bastionHosts', variables('bastionName'))]"
+    },
+    "gatewayId": {
+      "type": "string",
+      "metadata": {
+        "description": "VPN gateway resource ID."
+      },
+      "value": "[resourceId('Microsoft.Network/virtualNetworkGateways', variables('gatewayName'))]"
+    },
+    "gatewayPublicIp": {
+      "type": "string",
+      "metadata": {
+        "description": "VPN gateway public IP address."
+      },
+      "value": "[reference('gatewayPublicIp').ipAddress]"
+    }
+  }
+}

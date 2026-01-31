@@ -1,0 +1,111 @@
+name: phase1-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Phase 1 task to deploy"
+        type: choice
+        options:
+          - task-1.1-storage-account
+          - task-1.2-hub-vnet
+          - task-1.3-alz-management-groups
+        required: true
+      location:
+        description: "Azure location (for subscription/tenant deployments)"
+        type: string
+        required: false
+        default: "eastus2"
+      resourceGroup:
+        description: "Resource group (for resourceGroup deployments)"
+        type: string
+        required: false
+        default: ""
+      parametersFile:
+        description: "Override parameters file path (optional)"
+        type: string
+        required: false
+        default: ""
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Bicep
+        uses: ./.github/actions/bicep-validate
+        with:
+          path: infra/cp
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.CLIENT_ID }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          subscription-id: ${{ secrets.SUBSCRIPTION_ID }}
+          client-secret: ${{ secrets.SECRET_ID }}
+
+      - name: Resolve template and parameters
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          TASK="${{ github.event.inputs.task }}"
+          TEMPLATE="infra/cp/${TASK}/main.bicep"
+          PARAMS="${{ github.event.inputs.parametersFile }}"
+          if [ -z "$PARAMS" ]; then
+            PARAM_CANDIDATE="infra/cp/${TASK}/main.bicepparam"
+            if [ -f "$PARAM_CANDIDATE" ]; then
+              PARAMS="$PARAM_CANDIDATE"
+            fi
+          fi
+
+          echo "template=$TEMPLATE" >> "$GITHUB_OUTPUT"
+          echo "params=$PARAMS" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEMPLATE="${{ steps.resolve.outputs.template }}"
+          PARAMS="${{ steps.resolve.outputs.params }}"
+          LOCATION="${{ github.event.inputs.location }}"
+          RG="${{ github.event.inputs.resourceGroup }}"
+
+          PARAM_FLAGS=""
+          if [ -n "$PARAMS" ]; then
+            PARAM_FLAGS="--parameters @$PARAMS"
+          fi
+
+          if [ "${{ github.event.inputs.task }}" = "task-1.3-alz-management-groups" ]; then
+            az deployment tenant create \
+              --name "phase1-${{ github.run_id }}" \
+              --location "$LOCATION" \
+              --template-file "$TEMPLATE" \
+              $PARAM_FLAGS \
+              --no-pretty-print
+          else
+            if [ -z "$RG" ]; then
+              echo "resourceGroup input is required for this task."
+              exit 1
+            fi
+            az deployment group create \
+              --name "phase1-${{ github.run_id }}" \
+              --resource-group "$RG" \
+              --template-file "$TEMPLATE" \
+              $PARAM_FLAGS \
+              --no-pretty-print
+          fi

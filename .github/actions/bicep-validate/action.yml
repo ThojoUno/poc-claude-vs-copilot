@@ -1,0 +1,54 @@
+name: bicep-validate
+
+description: "Validate Bicep templates with build and format checks"
+
+inputs:
+  path:
+    description: "Root path to search for Bicep files"
+    required: false
+    default: "infra/cp"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Azure CLI
+      uses: azure/setup-azurecli@v2
+
+    - name: Install Bicep CLI
+      shell: bash
+      run: |
+        az bicep install
+
+    - name: Build Bicep files
+      shell: bash
+      run: |
+        set -euo pipefail
+        SEARCH_PATH="${{ inputs.path }}"
+        mapfile -t files < <(find "$SEARCH_PATH" -type f -name "*.bicep")
+        if [ ${#files[@]} -eq 0 ]; then
+          echo "No Bicep files found under $SEARCH_PATH"
+          exit 0
+        fi
+        for file in "${files[@]}"; do
+          echo "Building $file"
+          az bicep build --file "$file" --stdout > /dev/null
+        done
+
+    - name: Bicep formatting check
+      shell: bash
+      run: |
+        set -euo pipefail
+        SEARCH_PATH="${{ inputs.path }}"
+        mapfile -t files < <(find "$SEARCH_PATH" -type f -name "*.bicep")
+        if [ ${#files[@]} -eq 0 ]; then
+          echo "No Bicep files found under $SEARCH_PATH"
+          exit 0
+        fi
+        for file in "${files[@]}"; do
+          echo "Checking format for $file"
+          formatted=$(az bicep format --file "$file" --stdout)
+          if ! diff -q <(printf "%s" "$formatted") "$file" > /dev/null; then
+            echo "::error file=$file::Bicep file is not formatted. Run 'az bicep format --file $file'."
+            exit 1
+          fi
+        done
