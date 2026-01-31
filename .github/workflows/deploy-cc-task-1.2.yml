@@ -1,0 +1,124 @@
+name: Deploy CC Task 1.2 - Hub VNet
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        type: choice
+        options:
+          - dev
+          - prod
+        default: 'dev'
+        required: true
+      resource_group:
+        description: 'Target resource group'
+        type: string
+        default: 'rg-eastus2-claude'
+        required: true
+      location:
+        description: 'Azure region'
+        type: string
+        default: 'eastus2'
+        required: true
+
+env:
+  TEMPLATE_PATH: infra/cc/task-1.2-hub-vnet/main.bicep
+  PARAMS_PATH: infra/cc/task-1.2-hub-vnet/main.bicepparam
+
+jobs:
+  validate:
+    name: Validate
+    uses: ./.github/workflows/validate-bicep.yml
+    with:
+      bicep_path: infra/cc/task-1.2-hub-vnet
+
+  deploy:
+    name: Deploy Hub VNet
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        run: |
+          az login --service-principal \
+            --username "${{ secrets.CLIENT_ID }}" \
+            --password "${{ secrets.SECRET_ID }}" \
+            --tenant "${{ secrets.TENANT_ID }}" \
+            --output none
+          az account set --subscription "${{ secrets.SUBSCRIPTION_ID }}"
+
+      - name: Get prerequisite outputs
+        id: prereqs
+        run: |
+          RG="${{ inputs.resource_group }}"
+          SUB_ID=$(az account show --query id -o tsv)
+
+          LAW_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.OperationalInsights/workspaces/law-cc-${{ inputs.environment }}-eus2"
+          echo "logAnalyticsWorkspaceId=${LAW_ID}" >> $GITHUB_OUTPUT
+
+      - name: Convert bicepparam to JSON
+        run: |
+          az bicep build-params \
+            --file "${{ env.PARAMS_PATH }}" \
+            --outfile params.json
+
+      - name: What-If deployment
+        run: |
+          az deployment group what-if \
+            --name "cc-task-1.2-${{ github.run_id }}" \
+            --resource-group "${{ inputs.resource_group }}" \
+            --template-file "${{ env.TEMPLATE_PATH }}" \
+            --parameters @params.json \
+            --parameters environment=${{ inputs.environment }} \
+                         location=${{ inputs.location }} \
+                         logAnalyticsWorkspaceId="${{ steps.prereqs.outputs.logAnalyticsWorkspaceId }}"
+
+      - name: Deploy hub VNet
+        run: |
+          az deployment group create \
+            --name "cc-task-1.2-${{ github.run_id }}" \
+            --resource-group "${{ inputs.resource_group }}" \
+            --template-file "${{ env.TEMPLATE_PATH }}" \
+            --parameters @params.json \
+            --parameters environment=${{ inputs.environment }} \
+                         location=${{ inputs.location }} \
+                         logAnalyticsWorkspaceId="${{ steps.prereqs.outputs.logAnalyticsWorkspaceId }}" \
+            --output json > deployment-output.json
+
+      - name: Display deployment outputs
+        run: |
+          echo "Deployment Outputs:"
+          cat deployment-output.json | jq '.properties.outputs'
+
+      - name: Verify hub VNet configuration
+        run: |
+          RG="${{ inputs.resource_group }}"
+
+          # Verify Firewall
+          FW_NAME="afw-cc-${{ inputs.environment }}-eus2"
+          echo "Checking Azure Firewall: $FW_NAME"
+          FW_STATUS=$(az network firewall show --name "$FW_NAME" --resource-group "$RG" --query "provisioningState" -o tsv 2>/dev/null || echo "Not Found")
+          echo "Firewall Status: $FW_STATUS"
+
+          # Verify Bastion
+          BAS_NAME="bas-cc-${{ inputs.environment }}-eus2"
+          echo "Checking Azure Bastion: $BAS_NAME"
+          BAS_STATUS=$(az network bastion show --name "$BAS_NAME" --resource-group "$RG" --query "provisioningState" -o tsv 2>/dev/null || echo "Not Found")
+          echo "Bastion Status: $BAS_STATUS"
+
+          # Verify VPN Gateway
+          GW_NAME="vpngw-cc-${{ inputs.environment }}-eus2"
+          echo "Checking VPN Gateway: $GW_NAME"
+          GW_STATUS=$(az network vnet-gateway show --name "$GW_NAME" --resource-group "$RG" --query "provisioningState" -o tsv 2>/dev/null || echo "Not Found")
+          echo "VPN Gateway Status: $GW_STATUS"
+
+          # Verify Route Table
+          RT_NAME="rt-shared-cc-${{ inputs.environment }}-eus2"
+          echo "Checking Route Table: $RT_NAME"
+          RT_ROUTES=$(az network route-table show --name "$RT_NAME" --resource-group "$RG" --query "routes[].name" -o tsv 2>/dev/null || echo "Not Found")
+          echo "Route Table Routes: $RT_ROUTES"

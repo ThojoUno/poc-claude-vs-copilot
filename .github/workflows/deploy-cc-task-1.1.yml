@@ -1,0 +1,125 @@
+name: Deploy CC Task 1.1 - Storage Account
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        type: choice
+        options:
+          - dev
+          - prod
+        default: 'dev'
+        required: true
+      resource_group:
+        description: 'Target resource group'
+        type: string
+        default: 'rg-eastus2-claude'
+        required: true
+      location:
+        description: 'Azure region'
+        type: string
+        default: 'eastus2'
+        required: true
+
+env:
+  TEMPLATE_PATH: infra/cc/task-1.1-storage-account/main.bicep
+  PARAMS_PATH: infra/cc/task-1.1-storage-account/main.bicepparam
+
+jobs:
+  validate:
+    name: Validate
+    uses: ./.github/workflows/validate-bicep.yml
+    with:
+      bicep_path: infra/cc/task-1.1-storage-account
+
+  deploy:
+    name: Deploy Storage Account
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        run: |
+          az login --service-principal \
+            --username "${{ secrets.CLIENT_ID }}" \
+            --password "${{ secrets.SECRET_ID }}" \
+            --tenant "${{ secrets.TENANT_ID }}" \
+            --output none
+          az account set --subscription "${{ secrets.SUBSCRIPTION_ID }}"
+
+      - name: Get prerequisite outputs
+        id: prereqs
+        run: |
+          # Get outputs from prerequisites deployment
+          RG="${{ inputs.resource_group }}"
+          SUB_ID=$(az account show --query id -o tsv)
+
+          # Construct resource IDs based on naming convention
+          VNET_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/vnet-prereq-cc-${{ inputs.environment }}-eus2"
+          SUBNET_ID="${VNET_ID}/subnets/PrivateEndpointSubnet"
+          KV_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.KeyVault/vaults/kv-cc-${{ inputs.environment }}-eus2"
+          LAW_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.OperationalInsights/workspaces/law-cc-${{ inputs.environment }}-eus2"
+
+          echo "subnetId=${SUBNET_ID}" >> $GITHUB_OUTPUT
+          echo "keyVaultId=${KV_ID}" >> $GITHUB_OUTPUT
+          echo "logAnalyticsWorkspaceId=${LAW_ID}" >> $GITHUB_OUTPUT
+
+      - name: Convert bicepparam to JSON
+        run: |
+          az bicep build-params \
+            --file "${{ env.PARAMS_PATH }}" \
+            --outfile params.json
+
+      - name: What-If deployment
+        run: |
+          az deployment group what-if \
+            --name "cc-task-1.1-${{ github.run_id }}" \
+            --resource-group "${{ inputs.resource_group }}" \
+            --template-file "${{ env.TEMPLATE_PATH }}" \
+            --parameters @params.json \
+            --parameters environment=${{ inputs.environment }} \
+                         location=${{ inputs.location }} \
+                         subnetId="${{ steps.prereqs.outputs.subnetId }}" \
+                         keyVaultId="${{ steps.prereqs.outputs.keyVaultId }}" \
+                         logAnalyticsWorkspaceId="${{ steps.prereqs.outputs.logAnalyticsWorkspaceId }}"
+
+      - name: Deploy storage account
+        run: |
+          az deployment group create \
+            --name "cc-task-1.1-${{ github.run_id }}" \
+            --resource-group "${{ inputs.resource_group }}" \
+            --template-file "${{ env.TEMPLATE_PATH }}" \
+            --parameters @params.json \
+            --parameters environment=${{ inputs.environment }} \
+                         location=${{ inputs.location }} \
+                         subnetId="${{ steps.prereqs.outputs.subnetId }}" \
+                         keyVaultId="${{ steps.prereqs.outputs.keyVaultId }}" \
+                         logAnalyticsWorkspaceId="${{ steps.prereqs.outputs.logAnalyticsWorkspaceId }}" \
+            --output json > deployment-output.json
+
+      - name: Display deployment outputs
+        run: |
+          echo "Deployment Outputs:"
+          cat deployment-output.json | jq '.properties.outputs'
+
+      - name: Verify storage account configuration
+        run: |
+          STORAGE_NAME=$(cat deployment-output.json | jq -r '.properties.outputs.storageAccountName.value')
+          echo "Verifying storage account: $STORAGE_NAME"
+
+          # Check TLS version
+          TLS=$(az storage account show --name "$STORAGE_NAME" --resource-group "${{ inputs.resource_group }}" --query "minimumTlsVersion" -o tsv)
+          echo "TLS Version: $TLS"
+
+          # Check CMK encryption
+          ENCRYPTION=$(az storage account show --name "$STORAGE_NAME" --resource-group "${{ inputs.resource_group }}" --query "encryption.keySource" -o tsv)
+          echo "Encryption Key Source: $ENCRYPTION"
+
+          # Check private endpoint
+          PE_COUNT=$(az storage account show --name "$STORAGE_NAME" --resource-group "${{ inputs.resource_group }}" --query "privateEndpointConnections | length(@)" -o tsv)
+          echo "Private Endpoint Connections: $PE_COUNT"

@@ -1,0 +1,60 @@
+name: Validate Bicep
+
+on:
+  workflow_call:
+    inputs:
+      bicep_path:
+        description: 'Path to the bicep file to validate'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      bicep_path:
+        description: 'Path to the bicep file to validate'
+        required: true
+        type: string
+        default: 'infra/cc'
+
+jobs:
+  validate:
+    name: Validate Bicep Templates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+      - name: Install Bicep CLI
+        run: |
+          az bicep install
+          az bicep version
+
+      - name: Find and validate Bicep files
+        run: |
+          set -e
+          BICEP_PATH="${{ inputs.bicep_path }}"
+
+          echo "Validating Bicep files in: $BICEP_PATH"
+
+          # Find all .bicep files (excluding modules called by other files)
+          find "$BICEP_PATH" -name "main.bicep" -type f | while read -r file; do
+            echo "Validating: $file"
+            az bicep build --file "$file" --stdout > /dev/null
+            echo "  - Syntax OK"
+          done
+
+          echo "All Bicep files validated successfully"
+
+      - name: Lint Bicep files
+        run: |
+          set -e
+          BICEP_PATH="${{ inputs.bicep_path }}"
+
+          # Run bicep linter on main files
+          find "$BICEP_PATH" -name "main.bicep" -type f | while read -r file; do
+            echo "Linting: $file"
+            az bicep lint --file "$file" 2>&1 || true
+          done
