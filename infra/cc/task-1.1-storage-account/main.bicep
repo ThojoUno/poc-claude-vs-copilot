@@ -114,7 +114,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   }
 }
 
-// Blob service configuration
+// Blob service configuration (versioning not supported with HNS enabled)
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
   parent: storageAccount
   name: 'default'
@@ -127,7 +127,6 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
       enabled: true
       days: 30
     }
-    isVersioningEnabled: true
   }
 }
 
