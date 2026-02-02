@@ -20,14 +20,9 @@ param securityReadersGroupId string
 
 var contosoMgName = prefix
 var platformMgName = '${prefix}-platform'
-var managementMgName = '${prefix}-platform-management'
-var connectivityMgName = '${prefix}-platform-connectivity'
-var identityMgName = '${prefix}-platform-identity'
 var landingZonesMgName = '${prefix}-landingzones'
 var corpMgName = '${prefix}-landingzones-corp'
-var onlineMgName = '${prefix}-landingzones-online'
 var sandboxMgName = '${prefix}-sandbox'
-var decommissionedMgName = '${prefix}-decommissioned'
 
 var contosoMgId = tenantResourceId('Microsoft.Management/managementGroups', contosoMgName)
 var platformMgId = tenantResourceId('Microsoft.Management/managementGroups', platformMgName)
@@ -62,7 +57,6 @@ module tlsAssignment './policyAssignments.bicep' = {
   name: 'policy-tls12-landingzones'
   scope: managementGroup(landingZonesMgName)
   dependsOn: [
-    policyDefinitions
     managementGroups
   ]
   params: {
@@ -76,7 +70,6 @@ module privateEndpointsAssignment './policyAssignments.bicep' = {
   name: 'policy-private-endpoints-corp'
   scope: managementGroup(corpMgName)
   dependsOn: [
-    policyDefinitions
     managementGroups
   ]
   params: {
@@ -90,7 +83,6 @@ module allowedVmSkusAssignment './policyAssignments.bicep' = {
   name: 'policy-allowed-vm-skus-sandbox'
   scope: managementGroup(sandboxMgName)
   dependsOn: [
-    policyDefinitions
     managementGroups
   ]
   params: {

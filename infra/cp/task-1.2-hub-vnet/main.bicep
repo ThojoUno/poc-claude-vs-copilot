@@ -65,21 +65,24 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
 }
 
 resource firewallSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
-  name: '${vnet.name}/AzureFirewallSubnet'
+  name: 'AzureFirewallSubnet'
+  parent: vnet
   properties: {
     addressPrefix: firewallSubnetPrefix
   }
 }
 
 resource bastionSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
-  name: '${vnet.name}/AzureBastionSubnet'
+  name: 'AzureBastionSubnet'
+  parent: vnet
   properties: {
     addressPrefix: bastionSubnetPrefix
   }
 }
 
 resource gatewaySubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
-  name: '${vnet.name}/GatewaySubnet'
+  name: 'GatewaySubnet'
+  parent: vnet
   properties: {
     addressPrefix: gatewaySubnetPrefix
   }
@@ -209,11 +212,11 @@ resource vpnGateway 'Microsoft.Network/virtualNetworkGateways@2023-11-01' = {
         }
       }
     ]
-    generation: 'Generation2'
+    vpnGatewayGeneration: 'Generation2'
   }
 }
 
-var firewallPrivateIp = azureFirewall.properties.ipConfigurations[0].privateIPAddress
+var firewallPrivateIp = azureFirewall.properties.ipConfigurations[0].properties.privateIPAddress
 
 resource sharedServicesRouteTable 'Microsoft.Network/routeTables@2023-11-01' = {
   name: sharedServicesRouteTableName
@@ -235,7 +238,8 @@ resource sharedServicesRouteTable 'Microsoft.Network/routeTables@2023-11-01' = {
 }
 
 resource sharedServicesSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
-  name: '${vnet.name}/SharedServicesSubnet'
+  name: 'SharedServicesSubnet'
+  parent: vnet
   properties: {
     addressPrefix: sharedServicesSubnetPrefix
     routeTable: {

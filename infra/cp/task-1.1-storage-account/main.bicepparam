@@ -14,4 +14,5 @@ param tags = {
   environment: 'dev'
   owner: 'platform-team'
   costCenter: 'IT-001'
+  project: 'alz-poc'
 }

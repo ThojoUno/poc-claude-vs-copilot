@@ -50,6 +50,7 @@ type TagSet = {
   environment: string
   owner: string
   costCenter: string
+  project: string
 }
 
 var toolPrefix = 'cp'
@@ -58,7 +59,10 @@ var privateEndpointName = 'pe-${storageAccountName}-blob'
 var privateDnsZoneName = 'privatelink.blob.${az.environment().suffixes.storage}'
 var vnetId = substring(subnetId, 0, indexOf(subnetId, '/subnets/'))
 var keyVaultIdParts = split(keyVaultId, '/')
+var keyVaultSubId = keyVaultIdParts[2]
+var keyVaultRgName = keyVaultIdParts[4]
 var keyVaultName = keyVaultIdParts[length(keyVaultIdParts) - 1]
+var keyVaultScope = resourceGroup(keyVaultSubId, keyVaultRgName)
 
 resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: 'uai-${storageAccountName}'
@@ -66,8 +70,14 @@ resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@
   tags: tags
 }
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
-  name: keyVaultName
+module keyVaultAccess './keyVaultAccess.bicep' = {
+  name: 'keyvault-access'
+  scope: keyVaultScope
+  params: {
+    keyVaultName: keyVaultName
+    keyVaultRoleDefinitionId: keyVaultRoleDefinitionId
+    principalId: userAssignedIdentity.properties.principalId
+  }
 }
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
@@ -101,7 +111,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
       }
       keyvaultproperties: {
         keyname: keyName
-        keyvaulturi: keyVault.properties.vaultUri
+        keyvaulturi: keyVaultAccess.outputs.vaultUri
         keyversion: empty(keyVersion) ? null : keyVersion
       }
       services: {
@@ -117,7 +127,8 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
 }
 
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-01-01' = {
-  name: '${storageAccount.name}/default'
+  name: 'default'
+  parent: storageAccount
   properties: {
     deleteRetentionPolicy: {
       enabled: true
@@ -137,7 +148,8 @@ resource privateDnsZone 'Microsoft.Network/privateDnsZones@2023-07-01' = {
 }
 
 resource privateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2023-07-01' = {
-  name: '${privateDnsZone.name}/${uniqueString(vnetId)}'
+  name: uniqueString(vnetId)
+  parent: privateDnsZone
   location: 'global'
   properties: {
     virtualNetwork: {
@@ -170,7 +182,8 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01' = {
 }
 
 resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = {
-  name: '${privateEndpoint.name}/default'
+  name: 'default'
+  parent: privateEndpoint
   properties: {
     privateDnsZoneConfigs: [
       {
@@ -200,16 +213,6 @@ resource storageDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
         enabled: true
       }
     ]
-  }
-}
-
-resource keyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVaultId, userAssignedIdentity.id, keyVaultRoleDefinitionId)
-  scope: keyVault
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultRoleDefinitionId)
-    principalId: userAssignedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
   }
 }
 
